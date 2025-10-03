@@ -44,92 +44,155 @@
 		}
 
 		// Wheel rendering
-		function drawWheel(items, selectedIdx = null) {
-			const canvas = document.getElementById('wheel-canvas');
-			const ctx = canvas.getContext('2d');
-			const size = canvas.width;
-			ctx.clearRect(0, 0, size, size);
-			const n = items.length;
-			const center = size / 2;
-			const radius = center - 10;
-			const colors = ["#FF6384", "#36A2EB", "#FFCE56", "#4BC0C0", "#9966FF", "#FF9F40", "#191919", "#F5F5F5"];
-			for (let i = 0; i < n; i++) {
-				const angleStart = (2 * Math.PI * i) / n;
-				const angleEnd = (2 * Math.PI * (i + 1)) / n;
-				ctx.beginPath();
-				ctx.moveTo(center, center);
-				ctx.arc(center, center, radius, angleStart, angleEnd);
-				// Use pictureUrl as background if available, else color
-				if (items[i].pictureUrl) {
-					// Draw color first, then overlay image
-					ctx.fillStyle = colors[i % colors.length];
-					ctx.fill();
-					// Draw image as pattern
-					const img = new window.Image();
-					img.src = items[i].pictureUrl;
-					img.onload = function() {
-						const pattern = ctx.createPattern(img, 'repeat');
-						ctx.save();
-						ctx.beginPath();
-						ctx.moveTo(center, center);
-						ctx.arc(center, center, radius, angleStart, angleEnd);
-						ctx.closePath();
-						ctx.clip();
-						ctx.globalAlpha = 0.5;
-						ctx.fillStyle = pattern;
-						ctx.fill();
-						ctx.globalAlpha = 1.0;
-						ctx.restore();
-					};
-				} else {
-					ctx.fillStyle = colors[i % colors.length];
-					ctx.fill();
-				}
-				ctx.save();
-				ctx.translate(center, center);
-				ctx.rotate(angleStart + (angleEnd - angleStart) / 2);
-				ctx.textAlign = "center";
-				ctx.textBaseline = "middle";
-				ctx.font = "bold 20px sans-serif";
-				ctx.fillStyle = "#fff";
-				ctx.shadowColor = "#000";
-				ctx.shadowBlur = 4;
-				ctx.fillText(items[i].name || "?", radius * 0.65, 0);
-				ctx.restore();
-			}
-			// Draw pointer
-			ctx.save();
-			ctx.beginPath();
-			ctx.moveTo(center, center - radius - 10);
-			ctx.lineTo(center - 15, center - radius + 10);
-			ctx.lineTo(center + 15, center - radius + 10);
-			ctx.closePath();
-			ctx.fillStyle = "#dc3545";
-			ctx.fill();
-			ctx.restore();
-		}
+		function drawWheel(items, selectedIdx = null, rotation = 0, images = []) {
+    const canvas = document.getElementById('wheel-canvas');
+    const ctx = canvas.getContext('2d');
+    const size = canvas.width;
+    ctx.clearRect(0, 0, size, size);
+    const n = items.length;
+    const center = size / 2;
+    const radius = center - 10;
+    const colors = ["#FF6384", "#36A2EB", "#FFCE56", "#4BC0C0", "#9966FF", "#FF9F40", "#191919", "#F5F5F5"];
+
+    ctx.save();
+    ctx.translate(center, center);
+    ctx.rotate(rotation);
+    ctx.translate(-center, -center);
+
+    for (let i = 0; i < n; i++) {
+        const angleStart = (2 * Math.PI * i) / n;
+        const angleEnd = (2 * Math.PI * (i + 1)) / n;
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(center, center);
+        ctx.arc(center, center, radius, angleStart, angleEnd);
+        ctx.closePath();
+        ctx.clip();
+
+        // Draw color background
+        ctx.fillStyle = colors[i % colors.length];
+        ctx.fillRect(0, 0, size, size);
+
+        // Draw contained image if available
+        if (images[i]) {
+            const img = images[i];
+            const imgRatio = img.width / img.height;
+            let drawWidth = radius * 2, drawHeight = radius * 2;
+            if (imgRatio > 1) {
+                drawHeight = radius * 2;
+                drawWidth = drawHeight * imgRatio;
+            } else {
+                drawWidth = radius * 2;
+                drawHeight = drawWidth / imgRatio;
+            }
+            ctx.globalAlpha = 0.7;
+            ctx.drawImage(
+                img,
+                center - drawWidth / 2,
+                center - drawHeight / 2,
+                drawWidth,
+                drawHeight
+            );
+            ctx.globalAlpha = 1.0;
+        }
+
+        ctx.restore();
+
+        // Draw text
+        ctx.save();
+        ctx.translate(center, center);
+        ctx.rotate(angleStart + (angleEnd - angleStart) / 2);
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.font = "bold 20px sans-serif";
+        ctx.fillStyle = "#fff";
+        ctx.shadowColor = "#000";
+        ctx.shadowBlur = 4;
+        let name = items[i].name || "?";
+        let lines = name.split(' ');
+        let textY = radius * 0.65;
+        lines.forEach((line, idx) => {
+            ctx.fillText(line, textY, idx * 24 - 12);
+        });
+        ctx.restore();
+
+        // Highlight selected segment
+        if (selectedIdx === i) {
+            ctx.save();
+            ctx.beginPath();
+            ctx.moveTo(center, center);
+            ctx.arc(center, center, radius, angleStart, angleEnd);
+            ctx.closePath();
+            ctx.lineWidth = 8;
+            ctx.strokeStyle = "#dc3545";
+            ctx.stroke();
+            ctx.restore();
+        }
+    }
+    ctx.restore();
+
+    // Draw pointer (fixed position)
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(center, center - radius - 10);
+    ctx.lineTo(center - 15, center - radius + 10);
+    ctx.lineTo(center + 15, center - radius + 10);
+    ctx.closePath();
+    ctx.fillStyle = "#dc3545";
+    ctx.fill();
+    ctx.restore();
+}
 
 		// Wheel roll animation
 		function rollWheel(items, callback) {
-			const n = items.length;
-			let current = 0;
-			let rounds = Math.floor(Math.random() * 3) + 3; // 3-5 rounds
-			let total = rounds * n + Math.floor(Math.random() * n);
-			let speed = 80;
-			function animate() {
-				drawWheel(items, current % n);
-				current++;
-				if (current < total) {
-					speed += 4;
-					setTimeout(animate, speed);
-				} else {
-					const idx = current % n;
-					drawWheel(items, idx);
-					callback(idx);
-				}
-			}
-			animate();
-		}
+    preloadImages(items, function(images) {
+        const n = items.length;
+        let rounds = Math.floor(Math.random() * 3) + 3; // 3-5 rounds
+        let targetIdx = Math.floor(Math.random() * n);
+        let totalSegments = rounds * n + targetIdx;
+        let totalRotation = (2 * Math.PI * totalSegments) / n;
+        let duration = 2000; // ms
+        let start = null;
+
+        function animate(ts) {
+            if (!start) start = ts;
+            let elapsed = ts - start;
+            let progress = Math.min(elapsed / duration, 1);
+            let eased = 1 - Math.pow(1 - progress, 3);
+            let rotation = eased * totalRotation;
+            drawWheel(items, null, rotation, images);
+            if (progress < 1) {
+                requestAnimationFrame(animate);
+            } else {
+                // Final rotation: align selectedIdx to pointer (top)
+                let finalRotation = (2 * Math.PI * targetIdx) / n;
+                drawWheel(items, targetIdx, finalRotation, images);
+                callback(targetIdx);
+            }
+        }
+        requestAnimationFrame(animate);
+    });
+}
+
+		// Preload images for all items
+function preloadImages(items, callback) {
+    let loaded = 0;
+    const images = items.map(item => {
+        if (item.pictureUrl) {
+            const img = new Image();
+            img.src = item.pictureUrl;
+            img.onload = img.onerror = () => {
+                loaded++;
+                if (loaded === items.length) callback(images);
+            };
+            return img;
+        }
+        loaded++;
+        if (loaded === items.length) callback(images);
+        return null;
+    });
+    if (items.length === 0) callback(images);
+}
 
 		// Theme detection
 		function setThemeBg() {
@@ -152,8 +215,8 @@
 			}
 			rollWheel(filtered, function(idx) {
 				const item = filtered[idx];
-				let bg = item.pictureUrl ? `background-image:url('${item.pictureUrl}');background-size:cover;` : '';
-				document.getElementById('selected-dish').innerHTML = `<div class='dish-result card text-center' style='${bg} background-color:${!item.pictureUrl ? '#191919' : 'rgba(0,0,0,0.5)'}; color:#fff;'><div class='card-body'><h2>${item.name}</h2></div></div>`;
+				let bg = item.pictureUrl ? `background-image:url("${item.pictureUrl}");background-size:cover;` : '';
+				document.getElementById('selected-dish').innerHTML = `<div class='dish-result card text-center' style='${bg} background-color:${!item.pictureUrl ? '#191919' : ''}; color:#fff;'><div class='card-body'><h2>${item.name}</h2></div></div>`;
 			});
 		};
 	</script>
