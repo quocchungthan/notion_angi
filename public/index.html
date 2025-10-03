@@ -4,7 +4,9 @@
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<title>Nay ăn gì bay?</title>
-	<link rel="stylesheet" href="./index.css">
+	<!-- Bootstrap CSS -->
+	<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+	<link rel="stylesheet" href="/index.css">
 	<script>
 		// REPLACE THIS
 		var notion_data = [];
@@ -12,6 +14,148 @@
 	</script>
 </head>
 <body>
-	
+	<div id="main-app" class="d-flex flex-column justify-content-center align-items-center vh-100 vw-100">
+		<div class="mb-4">
+			<button id="roll-btn" class="btn btn-primary btn-lg">Quay món ăn</button>
+		</div>
+		<div id="wheel-container" class="position-relative">
+			<canvas id="wheel-canvas" width="400" height="400"></canvas>
+			<div id="selected-dish" class="selected-dish mt-4"></div>
+		</div>
+	</div>
+	<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+	<script>
+		// Helper: get current time and filter type
+		function getMealType() {
+			const now = new Date();
+			const hour = now.getHours();
+			if (hour < 9) return "Bữa sáng";
+			if (hour < 13) return "Bữa trưa";
+			return "Bữa tối";
+		}
+
+		function getFilteredData() {
+			const mealType = getMealType();
+			return notion_data.filter(item => {
+				if (item.disabled) return false;
+				if (!item.tags || !Array.isArray(item.tags)) return false;
+				return item.tags.includes(mealType);
+			});
+		}
+
+		// Wheel rendering
+		function drawWheel(items, selectedIdx = null) {
+			const canvas = document.getElementById('wheel-canvas');
+			const ctx = canvas.getContext('2d');
+			const size = canvas.width;
+			ctx.clearRect(0, 0, size, size);
+			const n = items.length;
+			const center = size / 2;
+			const radius = center - 10;
+			const colors = ["#FF6384", "#36A2EB", "#FFCE56", "#4BC0C0", "#9966FF", "#FF9F40", "#191919", "#F5F5F5"];
+			for (let i = 0; i < n; i++) {
+				const angleStart = (2 * Math.PI * i) / n;
+				const angleEnd = (2 * Math.PI * (i + 1)) / n;
+				ctx.beginPath();
+				ctx.moveTo(center, center);
+				ctx.arc(center, center, radius, angleStart, angleEnd);
+				// Use pictureUrl as background if available, else color
+				if (items[i].pictureUrl) {
+					// Draw color first, then overlay image
+					ctx.fillStyle = colors[i % colors.length];
+					ctx.fill();
+					// Draw image as pattern
+					const img = new window.Image();
+					img.src = items[i].pictureUrl;
+					img.onload = function() {
+						const pattern = ctx.createPattern(img, 'repeat');
+						ctx.save();
+						ctx.beginPath();
+						ctx.moveTo(center, center);
+						ctx.arc(center, center, radius, angleStart, angleEnd);
+						ctx.closePath();
+						ctx.clip();
+						ctx.globalAlpha = 0.5;
+						ctx.fillStyle = pattern;
+						ctx.fill();
+						ctx.globalAlpha = 1.0;
+						ctx.restore();
+					};
+				} else {
+					ctx.fillStyle = colors[i % colors.length];
+					ctx.fill();
+				}
+				ctx.save();
+				ctx.translate(center, center);
+				ctx.rotate(angleStart + (angleEnd - angleStart) / 2);
+				ctx.textAlign = "center";
+				ctx.textBaseline = "middle";
+				ctx.font = "bold 20px sans-serif";
+				ctx.fillStyle = "#fff";
+				ctx.shadowColor = "#000";
+				ctx.shadowBlur = 4;
+				ctx.fillText(items[i].name || "?", radius * 0.65, 0);
+				ctx.restore();
+			}
+			// Draw pointer
+			ctx.save();
+			ctx.beginPath();
+			ctx.moveTo(center, center - radius - 10);
+			ctx.lineTo(center - 15, center - radius + 10);
+			ctx.lineTo(center + 15, center - radius + 10);
+			ctx.closePath();
+			ctx.fillStyle = "#dc3545";
+			ctx.fill();
+			ctx.restore();
+		}
+
+		// Wheel roll animation
+		function rollWheel(items, callback) {
+			const n = items.length;
+			let current = 0;
+			let rounds = Math.floor(Math.random() * 3) + 3; // 3-5 rounds
+			let total = rounds * n + Math.floor(Math.random() * n);
+			let speed = 80;
+			function animate() {
+				drawWheel(items, current % n);
+				current++;
+				if (current < total) {
+					speed += 4;
+					setTimeout(animate, speed);
+				} else {
+					const idx = current % n;
+					drawWheel(items, idx);
+					callback(idx);
+				}
+			}
+			animate();
+		}
+
+		// Theme detection
+		function setThemeBg() {
+			const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+			document.body.style.backgroundColor = dark ? '#191919' : '#fff';
+			document.body.classList.toggle('dark-theme', dark);
+		}
+		setThemeBg();
+		window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', setThemeBg);
+
+		// Main logic
+		let filtered = getFilteredData();
+		drawWheel(filtered);
+		document.getElementById('roll-btn').onclick = function() {
+			filtered = getFilteredData();
+			if (!filtered.length) {
+				document.getElementById('selected-dish').innerHTML = '<div class="alert alert-warning">Không có món nào phù hợp!</div>';
+				drawWheel([{ name: "?" }]);
+				return;
+			}
+			rollWheel(filtered, function(idx) {
+				const item = filtered[idx];
+				let bg = item.pictureUrl ? `background-image:url('${item.pictureUrl}');background-size:cover;` : '';
+				document.getElementById('selected-dish').innerHTML = `<div class='dish-result card text-center' style='${bg} background-color:${!item.pictureUrl ? '#191919' : 'rgba(0,0,0,0.5)'}; color:#fff;'><div class='card-body'><h2>${item.name}</h2></div></div>`;
+			});
+		};
+	</script>
 </body>
 </html>

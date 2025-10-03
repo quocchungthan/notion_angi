@@ -1,0 +1,49 @@
+
+body, html {
+	width: 100vw;
+	height: 100vh;
+	margin: 0;
+	padding: 0;
+	box-sizing: border-box;
+}
+
+#main-app {
+	width: 100vw;
+	height: 100vh;
+	min-height: 100vh;
+	min-width: 100vw;
+	background: transparent;
+}
+
+.selected-dish {
+	width: 400px;
+	min-height: 80px;
+	margin: 0 auto;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.dish-result {
+	width: 100%;
+	min-height: 120px;
+	border-radius: 16px;
+	box-shadow: 0 4px 24px rgba(0,0,0,0.2);
+	background-position: center;
+	background-repeat: no-repeat;
+	background-size: cover;
+	color: #fff;
+	font-size: 2rem;
+	font-weight: bold;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+body.dark-theme {
+	background-color: #191919 !important;
+}
+
+body:not(.dark-theme) {
+	background-color: #fff !important;
+}

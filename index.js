@@ -15,39 +15,53 @@ const { Client } = require('@notionhq/client');
 const NOTION_TABLE_ID = process.env.NOTION_TABLE_ID;
 const NOTION_TOKEN = process.env.NOTION_TOKEN_ANGI;
 
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Helper to fetch data from Notion
+// Serve index.css explicitly
+app.get('/index.css', (req, res) => {
+	res.sendFile(path.join(__dirname, 'public', 'index.css'));
+});
+
+
+// In-memory cache for Notion data
+let notionCache = {
+	data: null,
+	expires: 0
+};
+
+// Helper to fetch data from Notion with 15 min cache
 async function fetchNotionData() {
+	const now = Date.now();
+	if (notionCache.data && notionCache.expires > now) {
+		return notionCache.data;
+	}
 	if (!NOTION_TABLE_ID || !NOTION_TOKEN) {
 		console.warn('Missing NOTION_TABLE_ID or NOTION_TOKEN');
 		return [];
 	}
-	console.log('Initializing Notion client...');
 	const notion = new Client({ auth: NOTION_TOKEN });
 	try {
-		console.log('Querying Notion database for pages:');
 		const dbResponse = await notion.databases.retrieve({ database_id: NOTION_TABLE_ID });
-		console.log('Database info:', dbResponse.data_sources[0]);
 		// Fetch pages from the database
 		const response = await notion.dataSources.query({ data_source_id: dbResponse.data_sources[0].id });
-		console.log('Raw Notion query response:', JSON.stringify(response, null, 2));
 		// Map Notion response to expected format
 		const mapped = response.results.map(page => {
 			const props = page.properties;
 			const item = {
-				name: props["Name"]?.title?.[0]?.text?.content || '',
-				pictureUrl: props["Picture Link"]?.rich_text?.[0]?.text?.content || '',
+				name: props["Tên"]?.title?.[0]?.text?.content || '',
+				pictureUrl: props["Hình ảnh minh họa"]?.rich_text?.[0]?.text?.content || '',
 				disabled: props["Disabled"]?.checkbox || false,
-				tags: props["Types"]?.multi_select?.map(t => t.name) || [],
+				tags: props["Cái này ăn được trong bữa nào?"]?.multi_select?.map(t => t.name) || [],
 				lastEditedTime: page.last_edited_time,
 				createdTime: page.created_time
 			};
-			console.log('Mapped Notion item:', item);
 			return item;
 		});
-		console.log('Final mapped Notion data:', mapped);
+		// Cache for 15 minutes
+		notionCache.data = mapped;
+		notionCache.expires = now + 15 * 60 * 1000;
 		return mapped;
 	} catch (err) {
 		console.error('Error fetching Notion data:', err);
@@ -56,28 +70,22 @@ async function fetchNotionData() {
 }
 
 app.get('/', async (req, res) => {
-	console.log('Received GET / request');
 	// Read index.html
 	const htmlPath = path.join(__dirname, 'public', 'index.html');
-	console.log('Reading HTML file:', htmlPath);
 	let html;
 	try {
 		html = fs.readFileSync(htmlPath, 'utf8');
-		console.log('HTML file loaded');
 	} catch (err) {
-		console.error('Error reading HTML file:', err);
 		return res.status(500).send('Error loading HTML');
 	}
 	// Fetch Notion data
 	let notionData = await fetchNotionData();
-	console.log('Injecting Notion data into HTML:', notionData);
 	// Inject data into HTML
 	html = html.replace(
 		/var notion_data = \[\];/,
 		'var notion_data = ' + JSON.stringify(notionData, null, 2) + ';'
 	);
 	res.send(html);
-	console.log('Response sent to client');
 });
 
 app.listen(PORT, () => {
